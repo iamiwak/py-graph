@@ -1,4 +1,6 @@
 import tkinter as tk
+from tkinter import ttk
+from typing import Callable
 
 from const import *
 from point import Point
@@ -10,7 +12,12 @@ class Editor:
         self.__root = root
         self.__canvas = tk.Canvas(root, width=CANVAS_WIDTH, height=CANVAS_HEIGHT, bg=BACKGROUND_COLOR_NAME)
         self.__clear_button = tk.Button(self.__root, text=CLEAR_BUTTON_TEXT, command=self.__clear_canvas)
+        self.__draw_mode_combobox = ttk.Combobox(self.__root, values=DRAW_MODES, state=COMBOBOX_STATE_TEXT)
         self.__start_point = None
+
+        self.__draw_mode_func_dict = {
+            DRAW_MODES[k]: v for k, v in enumerate([self.__draw_point, self.__draw_line])
+        }
 
         self.__build_settings()
 
@@ -19,18 +26,12 @@ class Editor:
         self.__start_point = None
 
     def __on_click(self, event):
-        x = event.x
-        y = event.y
+        x, y = event.x, event.y
 
-        if self.__start_point is None:
-            self.__start_point = Point(x, y)
-            self.__canvas.create_oval(x - POINT_SIZE, y - POINT_SIZE, x + POINT_SIZE, y + POINT_SIZE, fill=LINE_COLOR_NAME)
-        elif x == self.__start_point.x and y == self.__start_point.y:
-            pass
-        else:
-            end_point = Point(x, y)
-            Line(self.__start_point, end_point).draw(self.__canvas)
-            self.__start_point = None
+        draw_mode = self.__draw_mode_combobox.get()
+        draw_func: Callable = self.__draw_mode_func_dict.get(draw_mode)
+        # придумать, как прокидывать корректные данные по kwargs
+        draw_func(x=x, y=y)
 
     def __build_settings(self):
         self.__root.title(EDITOR_NAME_TEXT)
@@ -38,6 +39,30 @@ class Editor:
         self.__canvas.bind(LEFT_CLICK_KEY, self.__on_click)
         self.__canvas.pack()
         self.__clear_button.pack()
+
+        self.__draw_mode_combobox.current(0)
+        self.__draw_mode_combobox.pack()
+
+    def __get_draw_mode(self):
+        return DRAW_MODES[self.__draw_mode_combobox.current()]
+
+    def __draw_point(self, x: int, y: int):
+        Point(self.__canvas, x, y).draw()
+
+    def __draw_line(self, x: int, y: int):
+        point = Point(self.__canvas, x, y)
+        if not self.__start_point:
+            self.__start_point = point
+            point.draw(True)
+            return
+
+        if x == self.__start_point.x and y == self.__start_point.y:
+            return
+
+        end_point = point
+        Line(self.__canvas, self.__start_point, end_point).draw()
+        self.__canvas.delete(TEMPORARY_POINT_TAG)
+        self.__start_point = None
 
     def run(self):
         self.__root.mainloop()
